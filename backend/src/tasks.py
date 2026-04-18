@@ -8,6 +8,8 @@ from datetime import datetime
 from backend.src.celery_app import celery_app
 from backend.src.config import settings
 from backend.src.schemas import EntityCreate, RelationCreate, ExtractionResult
+from backend.src.ingestion import IngestionService
+from backend.src.vectorizer import VectorizationService
 
 logger = structlog.get_logger(__name__)
 
@@ -37,21 +39,70 @@ def process_document_local(source_id: int) -> Dict:
     logger.info("Starting local document processing", source_id=source_id)
     
     # TODO: Implement document loading from source_id
-    # TODO: Chunk text (512-768 tokens, 15% overlap)
-    # TODO: Generate embeddings via Ollama
-    # TODO: Extract entities and relations
-    # TODO: Save to database with status='raw'
+    # For now, we'll use a placeholder text for testing
+    test_text = """
+    Карл Маркс был немецким философом, экономистом и политическим теоретиком.
+    Он разработал теорию исторического материализзма и написал «Капитал».
+    Фридрих Энгельс был его соратником и соавтором «Коммунистического манифеста».
+    """
     
-    result = {
-        "source_id": source_id,
-        "status": "completed",
-        "entities_count": 0,
-        "relations_count": 0,
-        "processing_method": "local_ollama"
-    }
-    
-    logger.info("Local document processing completed", result=result)
-    return result
+    try:
+        # Step 1: Chunk the text
+        ingestion_service = IngestionService(chunk_size=512, overlap_percent=0.15)
+        chunks = ingestion_service.process_text(test_text)
+        
+        if not chunks:
+            logger.warning("No chunks created", source_id=source_id)
+            return {
+                "source_id": source_id,
+                "status": "failed",
+                "error": "No chunks created",
+                "entities_count": 0,
+                "relations_count": 0
+            }
+        
+        logger.info("Text chunked", source_id=source_id, chunks_count=len(chunks))
+        
+        # Step 2: Vectorize chunks
+        vectorizer = VectorizationService()
+        vectorized_chunks = vectorizer.vectorize_chunks_sync(chunks, source_id)
+        
+        successful_vectorizations = sum(
+            1 for chunk in vectorized_chunks if chunk["embedding"] is not None
+        )
+        
+        logger.info(
+            "Vectorization completed",
+            source_id=source_id,
+            successful=successful_vectorizations
+        )
+        
+        # TODO: Save vectorized chunks to database
+        # TODO: Extract entities and relations
+        # TODO: Save to database with status='raw'
+        
+        result = {
+            "source_id": source_id,
+            "status": "completed",
+            "chunks_count": len(chunks),
+            "vectorized_count": successful_vectorizations,
+            "entities_count": 0,
+            "relations_count": 0,
+            "processing_method": "local_ollama"
+        }
+        
+        logger.info("Local document processing completed", result=result)
+        return result
+        
+    except Exception as e:
+        logger.error("Local processing failed", source_id=source_id, error=str(e))
+        return {
+            "source_id": source_id,
+            "status": "failed",
+            "error": str(e),
+            "entities_count": 0,
+            "relations_count": 0
+        }
 
 
 @celery_app.task
