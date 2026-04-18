@@ -1,41 +1,38 @@
 ```
-# Python
+# Dependencies
+node_modules/
+
+# Build artifacts
+frontend/node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.*
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Python specific
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-env/
-venv/
-.venv/
-.ENV
-.ENV.local
-.venv.bak/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.git/modules/
-.DS_Store
-*.swp
-*.swo
-*~
-.project
-.pydevproject
-.vscode/
-.idea/
-
-# Testing
-.pytest_cache/
-.coverage/
-htmlcov/
-.hypothesis/
+*.so
 
 # Distribution / packaging
 .Python
@@ -55,21 +52,20 @@ wheels/
 .installed.cfg
 *.egg
 
-# Environment variables
-.env
-.env.local
-*.env
-*.env.*
+# Coverage
+.coverage
+coverage/
+htmlcov/
 
-# Compiled and binary files
-*.so
-*.dylib
-*.dll
-*.exe
-*.out
-*.o
-*.a
-*.obj
+# Pytest
+pytest_cache/
+
+# Mypy
+.mypy_cache/
+
+# Venv
+venv/
+ENV/
 
 # Compressed files
 *.zip
@@ -90,7 +86,9 @@ wheels/
 *.Z
 *.lz
 *.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 
-# Logs
-*.log
 ```
