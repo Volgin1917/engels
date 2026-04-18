@@ -1,17 +1,16 @@
 """
 Celery tasks for document processing, entity extraction, and MCP integration.
 """
+
 import structlog
-from typing import Dict, List, Optional
-from datetime import datetime
+from backend.src.database import get_async_session
 
 from backend.src.celery_app import celery_app
 from backend.src.config import settings
-from backend.src.schemas import EntityCreate, RelationCreate, ExtractionResult
-from backend.src.ingestion import IngestionService
-from backend.src.vectorizer import VectorizationService
 from backend.src.graph_builder import get_graph_builder
-from backend.src.database import get_async_session
+from backend.src.ingestion import IngestionService
+from backend.src.schemas import EntityCreate, ExtractionResult, RelationCreate
+from backend.src.vectorizer import VectorizationService
 
 logger = structlog.get_logger(__name__)
 
@@ -33,13 +32,13 @@ def process_document(self, source_id: int, use_mcp: bool = False):
 
 
 @celery_app.task
-def process_document_local(source_id: int) -> Dict:
+def process_document_local(source_id: int) -> dict:
     """
     Process document using local Ollama instance.
     Steps: chunking → embedding → entity extraction → relation extraction
     """
     logger.info("Starting local document processing", source_id=source_id)
-    
+
     # TODO: Implement document loading from source_id
     # For now, we'll use a placeholder text for testing
     test_text = """
@@ -49,12 +48,12 @@ def process_document_local(source_id: int) -> Dict:
     Буржуазия эксплуатирует пролетариат в эпоху капитализма.
     Классовая борьба приводит к социалистической революции.
     """
-    
+
     try:
         # Step 1: Chunk the text
         ingestion_service = IngestionService(chunk_size=512, overlap_percent=0.15)
         chunks = ingestion_service.process_text(test_text)
-        
+
         if not chunks:
             logger.warning("No chunks created", source_id=source_id)
             return {
@@ -62,56 +61,51 @@ def process_document_local(source_id: int) -> Dict:
                 "status": "failed",
                 "error": "No chunks created",
                 "entities_count": 0,
-                "relations_count": 0
+                "relations_count": 0,
             }
-        
+
         logger.info("Text chunked", source_id=source_id, chunks_count=len(chunks))
-        
+
         # Step 2: Vectorize chunks
         vectorizer = VectorizationService()
         vectorized_chunks = vectorizer.vectorize_chunks_sync(chunks, source_id)
-        
+
         successful_vectorizations = sum(
             1 for chunk in vectorized_chunks if chunk["embedding"] is not None
         )
-        
+
         logger.info(
-            "Vectorization completed",
-            source_id=source_id,
-            successful=successful_vectorizations
+            "Vectorization completed", source_id=source_id, successful=successful_vectorizations
         )
-        
+
         # Step 3: Extract entities and relations using GraphBuilder
         import asyncio
-        from sqlalchemy.ext.asyncio import AsyncSession
-        
+
         async def process_entities():
             async with get_async_session() as session:
                 graph_builder = get_graph_builder(session)
-                
+
                 total_entities = 0
                 total_relations = 0
-                
+
                 for i, chunk in enumerate(vectorized_chunks):
                     chunk_id = chunk.get("chunk_id") or (i + 1)
                     text = chunk.get("text", "")
-                    
+
                     if text:
                         entities, relations = await graph_builder.process_chunk_entities(
-                            chunk_id=chunk_id,
-                            text=text,
-                            source_id=source_id
+                            chunk_id=chunk_id, text=text, source_id=source_id
                         )
-                        
+
                         total_entities += len(entities)
                         total_relations += len(relations)
-                
+
                 # Commit the transaction
                 await session.commit()
-                
+
                 # Get statistics
                 stats = await graph_builder.get_graph_statistics()
-                
+
                 return {
                     "source_id": source_id,
                     "status": "completed",
@@ -120,92 +114,89 @@ def process_document_local(source_id: int) -> Dict:
                     "entities_count": total_entities,
                     "relations_count": total_relations,
                     "processing_method": "local_ollama",
-                    "graph_stats": stats
+                    "graph_stats": stats,
                 }
-        
+
         # Run async processing
         result = asyncio.run(process_entities())
-        
+
         logger.info("Local document processing completed", result=result)
         return result
-        
+
     except Exception as e:
         logger.error("Local processing failed", source_id=source_id, error=str(e))
         import traceback
+
         logger.error(traceback.format_exc())
         return {
             "source_id": source_id,
             "status": "failed",
             "error": str(e),
             "entities_count": 0,
-            "relations_count": 0
+            "relations_count": 0,
         }
 
 
 @celery_app.task
-def process_document_mcp(source_id: int) -> Dict:
+def process_document_mcp(source_id: int) -> dict:
     """
     Process document using external MCP server.
     Implements DLP anonymization before sending.
     """
     logger.info("Starting MCP document processing", source_id=source_id)
-    
+
     # TODO: Load document
     # TODO: Anonymize entities (DLP)
     # TODO: Send to MCP endpoint
     # TODO: Restore tokens from mapping
     # TODO: Save to database with status='raw', source_mcp=True
-    
+
     result = {
         "source_id": source_id,
         "status": "completed",
         "entities_count": 0,
         "relations_count": 0,
-        "processing_method": "mcp_external"
+        "processing_method": "mcp_external",
     }
-    
+
     logger.info("MCP document processing completed", result=result)
     return result
 
 
 @celery_app.task
-def extract_entities(source_id: int, chunk_texts: List[str]) -> ExtractionResult:
+def extract_entities(source_id: int, chunk_texts: list[str]) -> ExtractionResult:
     """
     Extract entities and relations from text chunks using Ollama.
     Returns validated Pydantic models.
     """
     logger.info("Extracting entities", source_id=source_id, chunks=len(chunk_texts))
-    
+
     # TODO: Build prompt for NER and relation extraction
     # TODO: Call Ollama API
     # TODO: Parse and validate response with Pydantic
     # TODO: Calculate confidence scores
-    
-    entities: List[EntityCreate] = []
-    relations: List[RelationCreate] = []
-    
-    return ExtractionResult(
-        entities=entities,
-        relations=relations,
-        confidence_score=0.0
-    )
+
+    entities: list[EntityCreate] = []
+    relations: list[RelationCreate] = []
+
+    return ExtractionResult(entities=entities, relations=relations, confidence_score=0.0)
 
 
 @celery_app.task
-def anonymize_and_send(source_id: int, text: str) -> Dict:
+def anonymize_and_send(source_id: int, text: str) -> dict:
     """
     Anonymize text (DLP) and send to external MCP server.
     Token mapping is stored in-memory and deleted after response.
     """
     logger.info("Anonymizing and sending to MCP", source_id=source_id)
-    
+
     # TODO: Run NER to identify PII
     # TODO: Replace with markers [ENT_1], [DATE_X], etc.
     # TODO: Store token mapping in memory (Redis with TTL)
     # TODO: Send anonymized text to MCP
     # TODO: Receive result and restore tokens
     # TODO: Delete token mapping
-    
+
     return {"success": True, "anonymized": True}
 
 
@@ -216,11 +207,11 @@ def verify_relation(relation_id: int, verified: bool, verified_by: int):
     Called from frontend when researcher confirms/rejects a relation.
     """
     logger.info("Verifying relation", relation_id=relation_id, verified=verified)
-    
+
     # TODO: Update relation status to 'verified' or 'rejected'
     # TODO: Set verified_by and verified_at
     # TODO: Log to audit_log table
-    
+
     return {"relation_id": relation_id, "status": "verified" if verified else "rejected"}
 
 
@@ -231,11 +222,11 @@ def circuit_breaker_retry(self, task_name: str, *args, **kwargs):
     Switches to local_ollama queue if MCP fails repeatedly.
     """
     logger.warning("Circuit breaker retry", task_name=task_name, attempt=self.request.retries)
-    
+
     # TODO: Check failure rate
     # TODO: If >5% errors, switch routing to local_ollama
     # TODO: Exponential backoff: 60s, 120s, 240s, 480s, 960s
-    
+
     try:
         # Retry original task
         return celery_app.send_task(task_name, args=args, kwargs=kwargs)
@@ -245,4 +236,4 @@ def circuit_breaker_retry(self, task_name: str, *args, **kwargs):
             # Fallback to local processing
             if "mcp" in task_name:
                 return process_document_local.delay(*args).get()
-        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+        raise self.retry(exc=exc, countdown=60 * (2**self.request.retries))

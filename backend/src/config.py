@@ -1,6 +1,4 @@
-import os
 from pydantic_settings import BaseSettings
-from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -8,7 +6,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql://engels:engels_secure_password_change_me@localhost:5432/engels"
-    
+
     # PostgreSQL (for Docker Compose)
     postgres_user: str = "engels"
     postgres_password: str = "engels_secure_password_change_me"
@@ -42,7 +40,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     node_env: str = "development"
     api_url: str = "http://localhost:1337"
-    
+
     # Frontend
     vite_api_url: str = "http://localhost:1337"
 

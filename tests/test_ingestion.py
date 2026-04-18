@@ -1,9 +1,8 @@
 """
 Tests for document ingestion and chunking.
 """
-import pytest
 
-from backend.src.ingestion import TextChunker, TextExtractor, IngestionService
+from backend.src.ingestion import IngestionService, TextChunker, TextExtractor
 
 
 class TestTextChunker:
@@ -38,7 +37,7 @@ class TestTextChunker:
         chunker = TextChunker(chunk_size=512)
         text = "This is a single sentence."
         chunks = chunker.chunk_text(text)
-        
+
         assert len(chunks) == 1
         assert chunks[0][0] == 0  # index
         assert chunks[0][1] == text
@@ -48,9 +47,9 @@ class TestTextChunker:
         chunker = TextChunker(chunk_size=100)
         text = """First sentence. Second sentence. Third sentence.
         Fourth sentence. Fifth sentence."""
-        
+
         chunks = chunker.chunk_text(text)
-        
+
         assert len(chunks) >= 1
         # All chunks should have valid indices
         for idx, chunk_text in chunks:
@@ -61,12 +60,12 @@ class TestTextChunker:
     def test_chunk_overlap(self):
         """Test that chunks have proper overlap."""
         chunker = TextChunker(chunk_size=50, overlap_percent=0.15)
-        text = """Sentence one. Sentence two. Sentence three. 
+        text = """Sentence one. Sentence two. Sentence three.
         Sentence four. Sentence five. Sentence six.
         Sentence seven. Sentence eight."""
-        
+
         chunks = chunker.chunk_text(text)
-        
+
         # With small chunk size and multiple sentences, we should get multiple chunks
         if len(chunks) > 1:
             # Check that consecutive chunks may share content (overlap)
@@ -81,9 +80,9 @@ class TestTextChunker:
         """Test that chunking respects sentence boundaries."""
         chunker = TextChunker(chunk_size=100)
         text = "First sentence. Second sentence. Third sentence."
-        
+
         chunks = chunker.chunk_text(text)
-        
+
         for idx, chunk_text in chunks:
             # Each chunk should contain complete sentences or be the last chunk
             # Sentences end with .!?
@@ -97,38 +96,38 @@ class TestTextExtractor:
 
     def test_extractor_supported_extensions(self):
         """Test supported file extensions."""
-        assert '.txt' in TextExtractor.SUPPORTED_EXTENSIONS
-        assert '.pdf' in TextExtractor.SUPPORTED_EXTENSIONS
-        assert '.docx' in TextExtractor.SUPPORTED_EXTENSIONS
-        assert '.md' in TextExtractor.SUPPORTED_EXTENSIONS
+        assert ".txt" in TextExtractor.SUPPORTED_EXTENSIONS
+        assert ".pdf" in TextExtractor.SUPPORTED_EXTENSIONS
+        assert ".docx" in TextExtractor.SUPPORTED_EXTENSIONS
+        assert ".md" in TextExtractor.SUPPORTED_EXTENSIONS
 
     def test_extract_txt_file(self, tmp_path):
         """Test extracting text from TXT file."""
         test_content = "Hello, World!\nThis is a test file."
         txt_file = tmp_path / "test.txt"
-        txt_file.write_text(test_content, encoding='utf-8')
-        
+        txt_file.write_text(test_content, encoding="utf-8")
+
         extracted = TextExtractor.extract_from_file(str(txt_file))
-        
+
         assert extracted == test_content
 
     def test_extract_md_file(self, tmp_path):
         """Test extracting text from Markdown file."""
         test_content = "# Header\n\nSome **markdown** text."
         md_file = tmp_path / "test.md"
-        md_file.write_text(test_content, encoding='utf-8')
-        
+        md_file.write_text(test_content, encoding="utf-8")
+
         extracted = TextExtractor.extract_from_file(str(md_file))
-        
+
         assert extracted == test_content
 
     def test_extract_unsupported_extension(self, tmp_path):
         """Test extracting from unsupported file type."""
         unsupported_file = tmp_path / "test.xyz"
         unsupported_file.write_text("content")
-        
+
         extracted = TextExtractor.extract_from_file(str(unsupported_file))
-        
+
         assert extracted is None
 
     def test_extract_nonexistent_file(self):
@@ -150,9 +149,9 @@ class TestIngestionService:
         """Test processing raw text."""
         service = IngestionService(chunk_size=100)
         text = "First sentence. Second sentence. Third sentence."
-        
+
         chunks = service.process_text(text)
-        
+
         assert isinstance(chunks, list)
         if chunks:
             assert all(isinstance(chunk, tuple) for chunk in chunks)
@@ -168,11 +167,11 @@ class TestIngestionService:
         """Test processing a TXT file."""
         test_content = "Line one.\nLine two.\nLine three."
         txt_file = tmp_path / "document.txt"
-        txt_file.write_text(test_content, encoding='utf-8')
-        
+        txt_file.write_text(test_content, encoding="utf-8")
+
         service = IngestionService(chunk_size=50)
         chunks = service.process_file(str(txt_file))
-        
+
         assert len(chunks) >= 1
         total_text = "".join(text for _, text in chunks)
         assert "Line one" in total_text
@@ -181,15 +180,19 @@ class TestIngestionService:
         """Test that long text is split into multiple chunks."""
         # Create a long text with many sentences
         # Each sentence needs to be long enough to trigger chunking
-        sentences = [f"Sentence number {i} contains enough words to exceed the chunk size limit when combined." for i in range(20)]
+        sentences = [
+            f"Sentence number {i} contains enough words "
+            f"to exceed the chunk size limit when combined."
+            for i in range(20)
+        ]
         text = " ".join(sentences)
-        
+
         service = IngestionService(chunk_size=50, overlap_percent=0.15)
         chunks = service.process_text(text)
-        
+
         # Should create multiple chunks for long text
         assert len(chunks) > 1
-        
+
         # Verify all sentences are preserved
         all_text = " ".join(text for _, text in chunks)
         for i in range(20):
