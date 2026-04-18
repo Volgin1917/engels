@@ -10,6 +10,8 @@ from backend.src.config import settings
 from backend.src.schemas import EntityCreate, RelationCreate, ExtractionResult
 from backend.src.ingestion import IngestionService
 from backend.src.vectorizer import VectorizationService
+from backend.src.graph_builder import get_graph_builder
+from backend.src.database import get_async_session
 
 logger = structlog.get_logger(__name__)
 
@@ -44,6 +46,8 @@ def process_document_local(source_id: int) -> Dict:
     Карл Маркс был немецким философом, экономистом и политическим теоретиком.
     Он разработал теорию исторического материализзма и написал «Капитал».
     Фридрих Энгельс был его соратником и соавтором «Коммунистического манифеста».
+    Буржуазия эксплуатирует пролетариат в эпоху капитализма.
+    Классовая борьба приводит к социалистической революции.
     """
     
     try:
@@ -77,25 +81,58 @@ def process_document_local(source_id: int) -> Dict:
             successful=successful_vectorizations
         )
         
-        # TODO: Save vectorized chunks to database
-        # TODO: Extract entities and relations
-        # TODO: Save to database with status='raw'
+        # Step 3: Extract entities and relations using GraphBuilder
+        import asyncio
+        from sqlalchemy.ext.asyncio import AsyncSession
         
-        result = {
-            "source_id": source_id,
-            "status": "completed",
-            "chunks_count": len(chunks),
-            "vectorized_count": successful_vectorizations,
-            "entities_count": 0,
-            "relations_count": 0,
-            "processing_method": "local_ollama"
-        }
+        async def process_entities():
+            async with get_async_session() as session:
+                graph_builder = get_graph_builder(session)
+                
+                total_entities = 0
+                total_relations = 0
+                
+                for i, chunk in enumerate(vectorized_chunks):
+                    chunk_id = chunk.get("chunk_id") or (i + 1)
+                    text = chunk.get("text", "")
+                    
+                    if text:
+                        entities, relations = await graph_builder.process_chunk_entities(
+                            chunk_id=chunk_id,
+                            text=text,
+                            source_id=source_id
+                        )
+                        
+                        total_entities += len(entities)
+                        total_relations += len(relations)
+                
+                # Commit the transaction
+                await session.commit()
+                
+                # Get statistics
+                stats = await graph_builder.get_graph_statistics()
+                
+                return {
+                    "source_id": source_id,
+                    "status": "completed",
+                    "chunks_count": len(chunks),
+                    "vectorized_count": successful_vectorizations,
+                    "entities_count": total_entities,
+                    "relations_count": total_relations,
+                    "processing_method": "local_ollama",
+                    "graph_stats": stats
+                }
+        
+        # Run async processing
+        result = asyncio.run(process_entities())
         
         logger.info("Local document processing completed", result=result)
         return result
         
     except Exception as e:
         logger.error("Local processing failed", source_id=source_id, error=str(e))
+        import traceback
+        logger.error(traceback.format_exc())
         return {
             "source_id": source_id,
             "status": "failed",
