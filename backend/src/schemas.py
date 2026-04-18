@@ -123,3 +123,27 @@ class MCPResponse(BaseModel):
     result: ExtractionResult
     success: bool
     error_message: Optional[str] = None
+
+
+class QueryRequest(BaseModel):
+    """Schema for RAG query request."""
+    question: str
+    source_id: Optional[int] = None
+    include_sources: bool = True
+    top_k: int = 5
+
+
+class QueryResponse(BaseModel):
+    """Schema for RAG query response."""
+    answer: str
+    context: str
+    sources: List[dict] = []
+    chunks_used: int = 0
+    metadata: dict = Field(default_factory=dict)
+
+
+class HealthResponse(BaseModel):
+    """Schema for health check response."""
+    status: str
+    components: dict
+    timestamp: datetime
