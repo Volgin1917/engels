@@ -1,0 +1,47 @@
+```
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+ENV/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+.coverage
+htmlcov/
+coverage/
+
+# Logs
+*.log
+*.out
+
+# Environment files
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+```
