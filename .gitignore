@@ -1,21 +1,29 @@
 ```
+# Dependencies
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.venv/
+venv/
 .env
 .env.local
 .env.*
-.vscode/
-.idea/
+
+# Logs and temp files
 *.log
 *.tmp
-.DS_Store
-Thumbs.db
-dist/
-build/
+
+# Editors
+.vscode/
+.idea/
+
+# Coverage
 .coverage
+coverage/
 htmlcov/
-.mypy_cache/
+
+# Testing
 .pytest_cache/
+.mypy_cache/
 ```

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
 from src.services.base import BaseService
-from src.models.relationship import Relationship
+from src.models import Relationship
 
 logger = structlog.get_logger()
 
@@ -30,5 +30,16 @@ class RelationshipService(BaseService[Relationship]):
     async def get_relationship(self, relationship_id: int) -> Optional[Relationship]:
         return await self.get(relationship_id)
 
-    async def list_relationships(self, skip: int = 0, limit: int = 100) -> List[Relationship]:
-        return await self.list(skip=skip, limit=limit)
+    async def list_relationships(self, skip: int = 0, limit: int = 100, source_entity_id: Optional[int] = None, target_entity_id: Optional[int] = None) -> List[Relationship]:
+        """List relationships with pagination and optional filtering"""
+        from sqlalchemy import select
+        
+        query = select(Relationship).offset(skip).limit(limit)
+        
+        if source_entity_id:
+            query = query.where(Relationship.source_entity_id == source_entity_id)
+        if target_entity_id:
+            query = query.where(Relationship.target_entity_id == target_entity_id)
+            
+        result = await self.db.execute(query)
+        return list(result.scalars().all())

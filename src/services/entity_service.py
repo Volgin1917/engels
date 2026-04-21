@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
 from src.services.base import BaseService
-from src.models.entity import Entity
+from src.models import Entity
 
 logger = structlog.get_logger()
 
@@ -30,5 +30,14 @@ class EntityService(BaseService[Entity]):
     async def get_entity(self, entity_id: int) -> Optional[Entity]:
         return await self.get(entity_id)
 
-    async def list_entities(self, skip: int = 0, limit: int = 100) -> List[Entity]:
-        return await self.list(skip=skip, limit=limit)
+    async def list_entities(self, skip: int = 0, limit: int = 100, entity_type: Optional[str] = None) -> List[Entity]:
+        """List entities with pagination and optional filtering"""
+        from sqlalchemy import select
+        
+        query = select(Entity).offset(skip).limit(limit)
+        
+        if entity_type:
+            query = query.where(Entity.type == entity_type)
+            
+        result = await self.db.execute(query)
+        return list(result.scalars().all())

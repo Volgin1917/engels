@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
 from src.services.base import BaseService
-from src.models.user import User
+from src.models import User
 from src.core.security import get_password_hash
 
 logger = structlog.get_logger()
@@ -40,5 +40,14 @@ class UserService(BaseService[User]):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def list_users(self, skip: int = 0, limit: int = 100) -> List[User]:
-        return await self.list(skip=skip, limit=limit)
+    async def list_users(self, skip: int = 0, limit: int = 100, is_active: Optional[bool] = None) -> List[User]:
+        """List users with pagination and optional filtering"""
+        from sqlalchemy import select
+        
+        query = select(User).offset(skip).limit(limit)
+        
+        if is_active is not None:
+            query = query.where(User.is_active == is_active)
+            
+        result = await self.db.execute(query)
+        return list(result.scalars().all())

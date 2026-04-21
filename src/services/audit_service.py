@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
 from src.services.base import BaseService
-from src.models.audit_log import AuditLog
+from src.models import AuditLog
 
 logger = structlog.get_logger()
 
@@ -37,5 +37,16 @@ class AuditService(BaseService[AuditLog]):
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_audit_logs(self, skip: int = 0, limit: int = 100) -> List[AuditLog]:
-        return await self.list(skip=skip, limit=limit)
+    async def get_audit_logs(self, skip: int = 0, limit: int = 100, entity_type: Optional[str] = None, action: Optional[str] = None) -> List[AuditLog]:
+        """List audit logs with pagination and optional filtering"""
+        from sqlalchemy import select
+        
+        query = select(AuditLog).offset(skip).limit(limit)
+        
+        if entity_type:
+            query = query.where(AuditLog.entity_type == entity_type)
+        if action:
+            query = query.where(AuditLog.action == action)
+            
+        result = await self.db.execute(query)
+        return list(result.scalars().all())

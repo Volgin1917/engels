@@ -4,12 +4,12 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.session import get_async_session
 from src.services.entity_service import EntityService
-from src.services.relation_service import RelationService
+from src.services.relationship_service import RelationshipService
 from src.services.source_service import SourceService
 from src.services.audit_service import AuditService
 from src.services.user_service import UserService
 from src.core.security import get_current_user
-from src.models.user import User
+from src.models import User
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -23,9 +23,9 @@ def get_entity_service(db: AsyncSession = Depends(get_db)) -> EntityService:
     return EntityService(db)
 
 
-def get_relation_service(db: AsyncSession = Depends(get_db)) -> RelationService:
+def get_relationship_service(db: AsyncSession = Depends(get_db)) -> RelationshipService:
     """Получить сервис связей."""
-    return RelationService(db)
+    return RelationshipService(db)
 
 
 def get_source_service(db: AsyncSession = Depends(get_db)) -> SourceService:

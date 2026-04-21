@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
 from src.services.base import BaseService
-from src.models.source import Source
+from src.models import Source
 
 logger = structlog.get_logger()
 
@@ -30,8 +30,17 @@ class SourceService(BaseService[Source]):
     async def get_source(self, source_id: int) -> Optional[Source]:
         return await self.get(source_id)
 
-    async def list_sources(self, skip: int = 0, limit: int = 100) -> List[Source]:
-        return await self.list(skip=skip, limit=limit)
+    async def list_sources(self, skip: int = 0, limit: int = 100, is_active: Optional[bool] = None) -> List[Source]:
+        """List sources with pagination and optional filtering"""
+        from sqlalchemy import select
+        
+        query = select(Source).offset(skip).limit(limit)
+        
+        if is_active is not None:
+            query = query.where(Source.is_active == is_active)
+            
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
 
     async def sync_source(self, source_id: int, user_id: int) -> None:
         """Запускает синхронизацию источника данных"""
