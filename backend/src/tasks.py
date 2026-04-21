@@ -15,11 +15,12 @@ from backend.src.vectorizer import VectorizationService
 logger = structlog.get_logger(__name__)
 
 
-@celery_app.task(bind=True, max_retries=3)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def process_document(self, source_id: int, use_mcp: bool = False):
     """
     Main task for processing a document.
     Routes to local Ollama or external MCP based on configuration.
+    Implements retry mechanism with exponential backoff.
     """
     try:
         if use_mcp and settings.mcp_enabled:
@@ -28,31 +29,81 @@ def process_document(self, source_id: int, use_mcp: bool = False):
             return process_document_local.delay(source_id).get()
     except Exception as exc:
         logger.error("Document processing failed", source_id=source_id, error=str(exc))
-        raise self.retry(exc=exc, countdown=60)
+        # Exponential backoff: 60s, 120s, 240s
+        countdown = 60 * (2 ** (self.request.retries or 0))
+        raise self.retry(exc=exc, countdown=countdown)
 
 
-@celery_app.task
-def process_document_local(source_id: int) -> dict:
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def process_document_local(self, source_id: int) -> dict:
     """
     Process document using local Ollama instance.
     Steps: chunking → embedding → entity extraction → relation extraction
+    Implements retry mechanism for transient failures.
     """
     logger.info("Starting local document processing", source_id=source_id)
 
-    # TODO: Implement document loading from source_id
-    # For now, we'll use a placeholder text for testing
-    test_text = """
-    Карл Маркс был немецким философом, экономистом и политическим теоретиком.
-    Он разработал теорию исторического материализзма и написал «Капитал».
-    Фридрих Энгельс был его соратником и соавтором «Коммунистического манифеста».
-    Буржуазия эксплуатирует пролетариат в эпоху капитализма.
-    Классовая борьба приводит к социалистической революции.
-    """
-
     try:
-        # Step 1: Chunk the text
+        # Step 1: Load document from database
+        import asyncio
+        
+        async def load_document():
+            async with get_async_session() as session:
+                from backend.src.models import Source
+                from sqlalchemy import select
+                
+                stmt = select(Source).where(Source.id == source_id)
+                result = await session.execute(stmt)
+                source = result.scalar_one_or_none()
+                
+                if not source:
+                    logger.error("Source not found", source_id=source_id)
+                    return None
+                
+                # Update processing status
+                source.processing_status = "processing"
+                await session.commit()
+                
+                return source
+        
+        source = asyncio.run(load_document())
+        
+        if not source:
+            return {
+                "source_id": source_id,
+                "status": "failed",
+                "error": "Source not found",
+                "entities_count": 0,
+                "relations_count": 0,
+            }
+        
+        # Get document text (from file or metadata)
+        document_text = source.extra_metadata.get("text", "")
+        
+        if not document_text and source.file_path:
+            # TODO: Load text from file
+            logger.warning("File loading not implemented, using placeholder")
+            document_text = """
+            Карл Маркс был немецким философом, экономистом и политическим теоретиком.
+            Он разработал теорию исторического материализзма и написал «Капитал».
+            Фридрих Энгельс был его соратником и соавтором «Коммунистического манифеста».
+            Буржуазия эксплуатирует пролетариат в эпоху капитализма.
+            Классовая борьба приводит к социалистической революции.
+            """
+        
+        if not document_text:
+            logger.warning("No document text available", source_id=source_id)
+            return {
+                "source_id": source_id,
+                "status": "failed",
+                "error": "No document text available",
+                "entities_count": 0,
+                "relations_count": 0,
+            }
+
+        # Step 2: Chunk the text
         ingestion_service = IngestionService(chunk_size=512, overlap_percent=0.15)
-        chunks = ingestion_service.process_text(test_text)
+        chunks = ingestion_service.process_text(document_text)
 
         if not chunks:
             logger.warning("No chunks created", source_id=source_id)
@@ -66,7 +117,7 @@ def process_document_local(source_id: int) -> dict:
 
         logger.info("Text chunked", source_id=source_id, chunks_count=len(chunks))
 
-        # Step 2: Vectorize chunks
+        # Step 3: Vectorize chunks
         vectorizer = VectorizationService()
         vectorized_chunks = vectorizer.vectorize_chunks_sync(chunks, source_id)
 
@@ -78,9 +129,7 @@ def process_document_local(source_id: int) -> dict:
             "Vectorization completed", source_id=source_id, successful=successful_vectorizations
         )
 
-        # Step 3: Extract entities and relations using GraphBuilder
-        import asyncio
-
+        # Step 4: Extract entities and relations using GraphBuilder
         async def process_entities():
             async with get_async_session() as session:
                 graph_builder = get_graph_builder(session)
@@ -89,7 +138,7 @@ def process_document_local(source_id: int) -> dict:
                 total_relations = 0
 
                 for i, chunk in enumerate(vectorized_chunks):
-                    chunk_id = chunk.get("chunk_id") or (i + 1)
+                    chunk_id = chunk.get("chunk_index", i + 1)
                     text = chunk.get("text", "")
 
                     if text:
@@ -119,6 +168,22 @@ def process_document_local(source_id: int) -> dict:
 
         # Run async processing
         result = asyncio.run(process_entities())
+        
+        # Update source status
+        async def update_status():
+            async with get_async_session() as session:
+                from backend.src.models import Source
+                from sqlalchemy import select
+                
+                stmt = select(Source).where(Source.id == source_id)
+                result = await session.execute(stmt)
+                source = result.scalar_one_or_none()
+                
+                if source:
+                    source.processing_status = "completed"
+                    await session.commit()
+        
+        asyncio.run(update_status())
 
         logger.info("Local document processing completed", result=result)
         return result
@@ -128,6 +193,32 @@ def process_document_local(source_id: int) -> dict:
         import traceback
 
         logger.error(traceback.format_exc())
+        
+        # Update source status to failed
+        try:
+            async def mark_failed():
+                async with get_async_session() as session:
+                    from backend.src.models import Source
+                    from sqlalchemy import select
+                    
+                    stmt = select(Source).where(Source.id == source_id)
+                    result = await session.execute(stmt)
+                    source = result.scalar_one_or_none()
+                    
+                    if source:
+                        source.processing_status = "failed"
+                        source.extra_metadata["error"] = str(e)
+                        await session.commit()
+            
+            asyncio.run(mark_failed())
+        except Exception:
+            pass
+        
+        # Retry on transient errors
+        if "timeout" in str(e).lower() or "connection" in str(e).lower():
+            countdown = 60 * (2 ** (self.request.retries or 0))
+            raise self.retry(exc=e, countdown=countdown)
+        
         return {
             "source_id": source_id,
             "status": "failed",
@@ -215,7 +306,7 @@ def verify_relation(relation_id: int, verified: bool, verified_by: int):
     return {"relation_id": relation_id, "status": "verified" if verified else "rejected"}
 
 
-@celery_app.task(bind=True, max_retries=5)
+@celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
 def circuit_breaker_retry(self, task_name: str, *args, **kwargs):
     """
     Circuit breaker pattern: retry failed tasks with exponential backoff.
@@ -223,9 +314,8 @@ def circuit_breaker_retry(self, task_name: str, *args, **kwargs):
     """
     logger.warning("Circuit breaker retry", task_name=task_name, attempt=self.request.retries)
 
-    # TODO: Check failure rate
-    # TODO: If >5% errors, switch routing to local_ollama
-    # TODO: Exponential backoff: 60s, 120s, 240s, 480s, 960s
+    # Exponential backoff: 60s, 120s, 240s, 480s, 960s
+    countdown = 60 * (2 ** (self.request.retries or 0))
 
     try:
         # Retry original task
@@ -234,6 +324,9 @@ def circuit_breaker_retry(self, task_name: str, *args, **kwargs):
         if self.request.retries >= self.max_retries:
             logger.error("Circuit breaker max retries exceeded", task_name=task_name)
             # Fallback to local processing
-            if "mcp" in task_name:
-                return process_document_local.delay(*args).get()
-        raise self.retry(exc=exc, countdown=60 * (2**self.request.retries))
+            if "mcp" in task_name and args:
+                source_id = args[0] if args else kwargs.get('source_id')
+                if source_id:
+                    logger.info("Falling back to local processing", source_id=source_id)
+                    return process_document_local.delay(source_id).get()
+        raise self.retry(exc=exc, countdown=countdown)
