@@ -1,122 +1,145 @@
 version: "3.8"
 
 services:
+  # ==========================================
+  # База данных (PostgreSQL + pgvector)
+  # ==========================================
   db:
     image: pgvector/pgvector:pg15
-    container_name: engels-db
+    container_name: kg-db
     environment:
-      POSTGRES_USER: engels
-      POSTGRES_PASSWORD: engels_secure_password_change_me
-      POSTGRES_DB: engels
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: kg_db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U engels"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - kg-network
 
+  # ==========================================
+  # Кэш и Брокер сообщений (Redis)
+  # ==========================================
   redis:
     image: redis:7-alpine
-    container_name: engels-redis
+    container_name: kg-redis
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - kg-network
 
-  strapi:
+  # ==========================================
+  # Основное приложение (Backend)
+  # ==========================================
+  backend:
     build:
-      context: ./backend/strapi
+      context: .
       dockerfile: Dockerfile
-    container_name: engels-strapi
+    container_name: kg-backend
+    ports:
+      - "8000:8000"
     environment:
-      DATABASE_CLIENT: postgres
-      DATABASE_HOST: db
-      DATABASE_PORT: 5432
-      DATABASE_NAME: engels
-      DATABASE_USERNAME: engels
-      DATABASE_PASSWORD: engels_secure_password_change_me
-      JWT_SECRET: strapi_jwt_secret_change_me
-      API_TOKEN_SALT: strapi_api_token_salt_change_me
-      ADMIN_JWT_SECRET: strapi_admin_jwt_secret_change_me
-      NODE_ENV: development
+      - ENVIRONMENT=local
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/kg_db
+      - REDIS_URL=redis://redis:6379/0
+      - STRAPI_URL=http://strapi:1337
+      - STRAPI_API_TOKEN=${STRAPI_API_TOKEN:-mytoken}
+      - LOG_LEVEL=DEBUG
     volumes:
-      - strapi_config:/opt/app/config
-      - strapi_content:/opt/app/content
-      - strapi_extensions:/opt/app/extensions
-      - strapi_uploads:/opt/app/public/uploads
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      strapi:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - kg-network
+
+  # ==========================================
+  # CMS (Strapi)
+  # ==========================================
+  strapi:
+    image: strapi/strapi:latest
+    container_name: kg-strapi
     ports:
       - "1337:1337"
+    environment:
+      - APP_KEYS=${APP_KEYS:-toBeGenerated1,toBeGenerated2}
+      - API_TOKEN_SALT=${API_TOKEN_SALT:-mysalt}
+      - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET:-mysecret}
+      - JWT_SECRET=${JWT_SECRET:-myjwtsecret}
+      - DATABASE_CLIENT=postgres
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=kg_strapi
+      - DATABASE_USERNAME=postgres
+      - DATABASE_PASSWORD=postgres
+    volumes:
+      - strapi-config:/opt/app/config
+      - strapi-src:/opt/app/src
+      - strapi-plugins:/opt/app/plugins
+      - strapi-content:/opt/app/public/uploads
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:1337/_health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - kg-network
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: engels-ollama
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
-    environment:
-      OLLAMA_NUM_PARALLEL: "2"
-      OLLAMA_KEEP_ALIVE: "5m"
-    deploy:
-      resources:
-        limits:
-          memory: 8G
-
-  celery-worker:
+  # ==========================================
+  # Воркер фоновых задач
+  # ==========================================
+  worker:
     build:
-      context: ./backend
-      dockerfile: Dockerfile.worker
-    container_name: engels-celery-worker
-    environment:
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      DATABASE_URL: postgresql://engels:engels_secure_password_change_me@db:5432/engels
-      OLLAMA_HOST: http://ollama:11434
-      LOG_LEVEL: INFO
-    volumes:
-      - ./backend:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      ollama:
-        condition: service_started
-
-  frontend:
-    build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile
-    container_name: engels-frontend
+    container_name: kg-worker
     environment:
-      VITE_API_URL: http://localhost:1337
-      NODE_ENV: development
-    ports:
-      - "3000:80"
+      - ENVIRONMENT=local
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/kg_db
+      - REDIS_URL=redis://redis:6379/0
+      - STRAPI_URL=http://strapi:1337
     depends_on:
-      strapi:
-        condition: service_started
-
-volumes:
-  postgres_data:
-  strapi_config:
-  strapi_content:
-  strapi_extensions:
-  strapi_uploads:
-  ollama_data:
+      - backend
+      - redis
+      - db
+    command: python -m celery -A app.core.celery_app worker --loglevel=info
+    networks:
+      - kg-network
+    profiles:
+      - workers
 
 networks:
-  default:
-    name: engels-network
+  kg-network:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redis-data:
+  strapi-config:
+  strapi-src:
+  strapi-plugins:
+  strapi-content:
