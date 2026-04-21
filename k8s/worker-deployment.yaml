@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kg-worker
+  namespace: knowledge-graph
+  labels:
+    app: kg-worker
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kg-worker
+  template:
+    metadata:
+      labels:
+        app: kg-worker
+        version: v1
+    spec:
+      serviceAccountName: kg-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: worker
+          image: your-registry/knowledge-graph:latest
+          imagePullPolicy: Always
+          command: ["python", "-m", "celery", "-A", "app.core.celery_app", "worker", "--loglevel=info"]
+          envFrom:
+            - configMapRef:
+                name: kg-config
+            - secretRef:
+                name: kg-secrets
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@kg-db:5432/$(DATABASE_NAME)"
+            - name: REDIS_URL
+              value: "redis://kg-redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - app.core.celery_app
+                - inspect
+                - ping
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 3

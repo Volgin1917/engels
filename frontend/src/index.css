@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Vis-Timeline Dark Theme Overrides */
+.vis-timeline {
+  background: #0a0a0c;
+  border: 1px solid #2a2a2e;
+  color: #e5e5e5;
+}
+
+.vis-item {
+  background-color: #111114;
+  border-color: #2a2a2e;
+  color: #e5e5e5;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.vis-item.vis-selected {
+  background-color: #2a2a2e;
+  border-color: #6b6b70;
+}
+
+.vis-item.vis-item-proletariat {
+  border-color: #ef4444;
+}
+
+.vis-item.vis-item-bourgeoisie {
+  border-color: #3b82f6;
+}
+
+.vis-item.vis-item-event {
+  border-color: #eab308;
+}
+
+.vis-item.vis-item-concept {
+  border-color: #22c55e;
+}
+
+.vis-time-axis .vis-text {
+  color: #6b6b70;
+}
+
+.vis-time-axis .vis-grid.vis-minor {
+  border-color: #1a1a1e;
+}
+
+.vis-time-axis .vis-grid.vis-major {
+  border-color: #2a2a2e;
+}
+
+.vis-panel.vis-center,
+.vis-panel.vis-left,
+.vis-panel.vis-right {
+  border-color: #2a2a2e;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0c;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2e;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3e;
+}

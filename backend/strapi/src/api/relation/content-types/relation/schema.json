@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "relations",
+  "info": {
+    "singularName": "relation",
+    "pluralName": "relations",
+    "displayName": "Relation",
+    "description": "Relationships between entities in the knowledge graph"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "from_entity": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::entity.entity",
+      "inversedBy": "relations"
+    },
+    "to_entity": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::entity.entity",
+      "inversedBy": "incoming_relations"
+    },
+    "relation_type": {
+      "type": "string",
+      "required": true,
+      "description": "Type of relationship (e.g., WORKS_FOR, LOCATED_IN, PART_OF)"
+    },
+    "description": {
+      "type": "text"
+    },
+    "confidence": {
+      "type": "decimal"
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "source_chunks": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::document.document",
+      "mappedBy": "relations"
+    }
+  }
+}
