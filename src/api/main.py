@@ -7,7 +7,8 @@ from src.api.routes import (
     relations_router,
     sources_router,
     audit_router,
-    users_router
+    users_router,
+    auth_router
 )
 from src.config import settings
 
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     )
 
     # Подключаем роутеры
+    app.include_router(auth_router)
     app.include_router(entities_router)
     app.include_router(relations_router)
     app.include_router(sources_router)

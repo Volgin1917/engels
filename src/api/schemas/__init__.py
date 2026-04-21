@@ -1,6 +1,6 @@
 """Pydantic схемы для API."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -17,12 +17,11 @@ class EntityType(str, Enum):
 # --- Базовые схемы ---
 class BaseSchema(BaseModel):
     """Базовая схема с общими полями."""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 
 # --- Схемы для Entity ---
@@ -139,3 +138,26 @@ class PaginatedResponse(BaseModel):
 class ErrorResponse(BaseModel):
     detail: str
     code: Optional[str] = None
+
+
+# --- Схемы для Auth ---
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+    user_id: Optional[int] = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserCreateAuth(BaseModel):
+    username: str
+    email: str
+    password: str
+    full_name: Optional[str] = None
