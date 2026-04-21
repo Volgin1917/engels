@@ -1,24 +1,40 @@
 # Strapi CMS с поддержкой кастомных плагинов
-FROM strapi/strapi:4.25.6
+# Сборка из исходников для возможности установки плагинов
+# Архитектура: multi-stage build для оптимизации размера образа
 
-# Устанавливаем рабочую директорию
+FROM node:18-alpine AS base
+
+# Установка системных зависимостей для сборки
+RUN apk add --no-cache python3 make g++ vips-dev
+
 WORKDIR /opt/app
 
-# Копируем package.json для установки зависимостей
+# Копируем package.json и устанавливаем зависимости
 COPY package*.json ./
 
-# Устанавливаем зависимости (если есть кастомные)
-RUN if [ -f "package.json" ]; then npm install --production; fi
+# Устанавливаем все зависимости (включая dev для сборки)
+RUN npm install
 
-# Монтируем исходники и плагины через volumes в docker-compose
-# Эта сборка нужна только если вы добавляете системные зависимости или глобальные пакеты
+# Копируем весь проект Strapi
+COPY . .
 
-# Пример установки системных зависимостей для специфичных плагинов
-# RUN apk add --no-cache vips-dev fftw-dev gcc make cmake python3 py3-pip \
-#     && rm -rf /var/cache/apk/*
+# Собираем админ-панель
+RUN npm run build
+
+# Финальный образ
+FROM node:18-alpine
+
+WORKDIR /opt/app
+
+# Копируем собранный проект и зависимости
+COPY --from=base /opt/app/node_modules ./node_modules
+COPY --from=base /opt/app/build ./build
+COPY --from=base /opt/app/dist ./dist
+COPY --from=base /opt/app/package*.json ./
+COPY . .
 
 # Открываем порт
 EXPOSE 1337
 
-# Команда запуска (стандартная для Strapi)
+# Команда запуска
 CMD ["npm", "run", "develop"]

@@ -1,0 +1,52 @@
+{
+  "kind": "collectionType",
+  "collectionName": "entities",
+  "info": {
+    "singularName": "entity",
+    "pluralName": "entities",
+    "displayName": "Entity",
+    "description": "Knowledge graph entities extracted from documents"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "type": {
+      "type": "string",
+      "required": true,
+      "enum": ["PERSON", "ORGANIZATION", "LOCATION", "CONCEPT", "EVENT", "OBJECT", "OTHER"]
+    },
+    "description": {
+      "type": "text"
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "source_chunks": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::document.document",
+      "mappedBy": "entities"
+    },
+    "relations": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::relation.relation",
+      "mappedBy": "from_entity"
+    },
+    "incoming_relations": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::relation.relation",
+      "mappedBy": "to_entity"
+    },
+    "external_id": {
+      "type": "string",
+      "unique": true
+    }
+  }
+}

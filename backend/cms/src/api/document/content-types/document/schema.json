@@ -1,0 +1,54 @@
+{
+  "kind": "collectionType",
+  "collectionName": "documents",
+  "info": {
+    "singularName": "document",
+    "pluralName": "documents",
+    "displayName": "Document",
+    "description": "Source documents for knowledge extraction"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "content_type": {
+      "type": "string",
+      "enum": ["text", "pdf", "markdown", "html", "docx"]
+    },
+    "file_url": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "processing", "completed", "failed"],
+      "default": "pending"
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "entities": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::entity.entity",
+      "inversedBy": "source_chunks"
+    },
+    "relations": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::relation.relation",
+      "inversedBy": "source_chunks"
+    },
+    "chunks_count": {
+      "type": "integer",
+      "default": 0
+    },
+    "external_id": {
+      "type": "string",
+      "unique": true
+    }
+  }
+}
