@@ -75,10 +75,12 @@ services:
       - kg-network
 
   # ==========================================
-  # CMS (Strapi)
+  # CMS (Strapi) - кастомная сборка для плагинов
   # ==========================================
   strapi:
-    image: strapi/strapi:latest
+    build:
+      context: ./backend/cms
+      dockerfile: Dockerfile
     container_name: kg-strapi
     ports:
       - "1337:1337"
@@ -94,10 +96,10 @@ services:
       - DATABASE_USERNAME=postgres
       - DATABASE_PASSWORD=postgres
     volumes:
-      - strapi-config:/opt/app/config
-      - strapi-src:/opt/app/src
-      - strapi-plugins:/opt/app/plugins
-      - strapi-content:/opt/app/public/uploads
+      - ./backend/cms/src:/opt/app/src
+      - ./backend/cms/plugins:/opt/app/plugins
+      - ./backend/cms/config:/opt/app/config
+      - strapi-uploads:/opt/app/public/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -139,7 +141,4 @@ networks:
 volumes:
   pgdata:
   redis-data:
-  strapi-config:
-  strapi-src:
-  strapi-plugins:
-  strapi-content:
+  strapi-uploads:
