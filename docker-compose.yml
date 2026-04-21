@@ -78,7 +78,7 @@ services:
   # CMS (Strapi)
   # ==========================================
   strapi:
-    image: strapi/strapi:latest
+    image: strapi/strapi:4.25.6
     container_name: kg-strapi
     ports:
       - "1337:1337"

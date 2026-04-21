@@ -1,42 +1,36 @@
-```gitignore
-# Compiled Python files
-*.pyc
-__pycache__/
+```
+# Docker related
+.dockerenv
+Dockerfile*
+docker-compose*.yml
+*.dockerignore
 
-# Dependencies
-.venv/
-venv/
-node_modules/
-
-# Logs and temporary files
-*.log
-*.tmp
-*.swp
-
-# Environment files
+# Environment variables
 .env
 .env.local
-*.env.*
+.env.*
+!.env.example
 
-# Editors
-.vscode/
-.idea/
+# Dependencies
+node_modules/
+vendor/
 
-# Coverage reports
-.coverage
-coverage/
-htmlcov/
+# Logs
+*.log
 
-# Testing
-.pytest_cache/
-.mypy_cache/
-
-# Build artifacts
-dist/
-build/
-target/
-
-# OS specific
+# OS generated files
 .DS_Store
 Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*~
+```
+
+Wait, I need to reconsider. The only modified file is `docker-compose.yml`, which is a configuration file. According to rule #6, if the changes contain only source or config files and no build artifacts, dependencies, or temp files, I should output an empty .gitignore.
+
+Since `docker-compose.yml` is a configuration file and there are no build artifacts, dependencies, or temp files in the changes, the output should be empty.
+
+```  
 ```
