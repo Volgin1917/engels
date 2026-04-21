@@ -1,0 +1,19 @@
+# Minimal dependencies for running tests locally
+# Install with: pip install -r requirements-tests.txt
+
+# Core testing
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+
+# For async HTTP mocking in tests
+httpx>=0.25.0
+
+# Pydantic schemas (used by test_schemas.py)
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Logging (used by backend modules)
+structlog>=23.2.0
+
+# Type hints and utilities
+typing-extensions>=4.0.0
