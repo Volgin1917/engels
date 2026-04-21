@@ -15,17 +15,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Копируем только файлы зависимостей сначала (кэширование слоя)
-COPY requirements.txt requirements-tests.txt ./
+COPY pyproject.toml ./
 
 # Создаем виртуальное окружение и устанавливаем зависимости
 # --prefix позволяет установить пакеты в конкретную папку без активации venv
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Устанавливаем все зависимости (включая тяжелые для сборки, если они есть в requirements.txt)
+# Устанавливаем все зависимости (включая тяжелые для сборки, если они есть в pyproject.toml)
 # В продакшене мы будем использовать только то, что нужно для запуска
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -e .
 
 # ==========================================
 # Этап 2: Runtime (Минимальный образ)
